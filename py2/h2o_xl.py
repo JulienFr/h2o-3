@@ -356,7 +356,7 @@ class Xbase(object):
 
         # a little belt and suspenders
         if self.execDone:
-            debugprint("%s .do() already done:" (type (self, self.execExpr)))
+            debugprint("%s .do() already done:" % (type (self, self.execExpr)))
             return
 
         self.execResult = None
