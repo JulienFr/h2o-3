@@ -48,6 +48,8 @@ import static water.util.JavaVersionUtils.JAVA_VERSION;
 public class h2odriver extends Configured implements Tool {
 
   enum CloudingMethod { CALLBACKS, FILESYSTEM }
+  
+  enum TokenRefreshMode { AUTO, TOKEN, KEYTAB }
 
   final static String ARGS_CONFIG_FILE_PATTERN = "/etc/h2o/%s.args";
   final static String DEFAULT_ARGS_CONFIG = "h2odriver";
@@ -132,6 +134,7 @@ public class h2odriver extends Configured implements Tool {
   static String hiveHost = null;
   static String hivePrincipal = null;
   static boolean refreshTokens = false;
+  static TokenRefreshMode refreshTokensMode = TokenRefreshMode.AUTO;
   static String hiveToken = null;
   static CloudingMethod cloudingMethod = CloudingMethod.CALLBACKS;
   static String cloudingDir = null;
@@ -847,7 +850,7 @@ public class h2odriver extends Configured implements Tool {
                     "          [-principal <kerberos principal> -keytab <keytab path> [-run_as_user <impersonated hadoop username>] | -run_as_user <hadoop username>]\n" +
                     "          [-hiveHost <hostname:port> -hivePrincipal <hive server kerberos principal>]\n" +
                     "          [-hiveJdbcUrlPattern <pattern for constructing hive jdbc url>]\n" +
-                    "          [-refreshTokens]\n" +
+                    "          [-refreshTokens] [-refreshTokensMode <auto|token|keytab (defaults to 'auto')>]\n" +
                     "          [-clouding_method <callbacks|filesystem (defaults: to 'callbacks')>]\n" +
                     "          [-driverif <ip address of mapper->driver callback interface>]\n" +
                     "          [-driverport <port of mapper->driver callback interface>]\n" +
@@ -1264,6 +1267,9 @@ public class h2odriver extends Configured implements Tool {
         hivePrincipal = args[i];
       } else if (s.equals("-refreshTokens")) {
         refreshTokens = true;
+      } else if (s.equals("-refreshTokensMode")) {
+        i++; if (i >= args.length) { usage (); }
+        refreshTokensMode = TokenRefreshMode.valueOf(args[i].toUpperCase());
       } else if (s.equals("-hiveToken")) {
         i++; if (i >= args.length) { usage (); }
         hiveToken = args[i];
@@ -1386,6 +1392,10 @@ public class h2odriver extends Configured implements Tool {
     
     if (refreshTokens && hivePrincipal == null) {
       error("delegation token refresh requires Hive principal to be set (use the '-hivePrincipal' option)");
+    }
+    
+    if (refreshTokens && refreshTokensMode == TokenRefreshMode.KEYTAB && keytabPath == null) {
+      error("token refresh via keytab selected but no keytab configured (use the -keytab and -principal options");
     }
 
     if (client && disown) {
@@ -2057,7 +2067,10 @@ public class h2odriver extends Configured implements Tool {
       haveHiveToken = HiveTokenGenerator.addHiveDelegationTokenIfHivePresent(j, hiveJdbcUrlPattern, hiveHost, hivePrincipal);
     }
     if (refreshTokens) {
-      if (!haveHiveToken) {
+      if (!haveHiveToken || refreshTokensMode == TokenRefreshMode.KEYTAB) {
+        if (refreshTokensMode == TokenRefreshMode.TOKEN) {
+          throw new IllegalArgumentException("refreshTokensMode set to token, but no token was provided or generated");
+        }
         // token not acquired, we need to distribute keytab to make token acquisition possible in mapper
         if (runAsUser != null) j.getConfiguration().set(H2O_AUTH_USER, runAsUser);
         if (principal != null) j.getConfiguration().set(H2O_AUTH_PRINCIPAL, principal);
