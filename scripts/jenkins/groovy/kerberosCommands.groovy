@@ -71,7 +71,7 @@ class KerberosCommands {
             rm -fv h2o_one_node h2odriver.log
             if [ "\$HIVE_DIST_ENABLED" == "true" ]; then
                 # hive 2+, regular refresh is enough
-                REFRESH_TOKENS_CONF="--refreshTokens"
+                REFRESH_TOKENS_CONF="--refreshTokens ${prepareToken ? "--refreshTokensMode token" : ""}"
                 CHECK_TOKEN_REFRESH_MAKE_TARGET=test-kerberos-verify-token-refresh
             else if [ "${impersonationArgs}" != "" ]; then
                 # use keytab to refresh tokens on hive 1.x
